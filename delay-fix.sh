@@ -1,5 +1,19 @@
 #! /bin/bash
 
+if [ "$1" == "" ] || [ "$1" == "--help" ] || [ "$1" == "-h" ]; then
+	echo -e "Usage:\tdelay-fix.sh <filename> [--merge] [--start <time> --end <time>]"
+	echo -e "\n\tThis script automatically selects preset based on the containing folder name"
+	echo -e "\tand makes a new file <filename>-fixed (original file remains untouched)"
+	echo -e "\n\tPath example: […]/ReplaySorcery/<filename> or […]/GpuScreenRecorder/<filename>"
+	echo -e "\nOptions:"
+	echo -e "\t--merge\t\t\tMake an output file with a single merged audio track"
+	echo -e "\t--start <time>\t\tSkip first <time> (value in seconds)"
+	echo -e "\t--end   <time>\t\tRemove last <time> (value in seconds)"
+	echo -e "\nExample:"
+	echo -e "\t./delay-fix.sh Replay_2024-02-28_00-46-13.mkv --merge --start 6 --end 6"
+	exit 0
+fi
+
 filename=$(basename -- "$1")
 extension="${filename##*.}"
 filename="${filename%.*}"
@@ -24,14 +38,19 @@ fi
 #	offset="$3"
 #fi
 
-if [ "$3" == "--start" ]; then
-	start_time=$(($start_time+$4))
+start_flag="0"
+end_flag="0"
+
+if [ "$2" == "--merge" ] && [ "$3" == "--start" ]; then start_flag="$4"
+	elif [ "$2" == "--start" ]; then start_flag="$3"
 fi
-if [ "$5" == "--end" ]; then
-	#printf -v int %.0f "$end_time"
-	int=${end_time%.*}
-	end_time="$(($int-$start_time-$6))"
+if [ "$2" == "--merge" ] && [ "$5" == "--end" ]; then end_flag="$6"
+	elif [ "$4" == "--end" ]; then end_flag="$5"
 fi
+
+int_val=${end_time%.*}
+start_time=$(($start_time+$start_flag))
+end_time="$(($int_val-$start_time-$end_flag))"
 
 echo -e "Start time = $start_time"
 echo -e "End time = $end_time"
