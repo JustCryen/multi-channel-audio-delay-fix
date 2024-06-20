@@ -22,7 +22,8 @@ Help() {
 }
 
 
-filename=$(basename -- "$1"); shift
+filename=$(basename -- "$1")
+if [[ $filename != "-"* ]]; then shift; fi
 extension="${filename##*.}"
 filename="${filename%.*}"
 directory=$(basename $(pwd))
