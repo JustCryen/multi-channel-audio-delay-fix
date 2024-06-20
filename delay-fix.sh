@@ -1,26 +1,35 @@
 #! /bin/bash
-
-if [ "$1" == "" ] || [ "$1" == "--help" ] || [ "$1" == "-h" ]; then
-	echo -e "Usage:\tdelay-fix.sh <filename> [--merge] [--start <time> --end <time>]"
-	echo -e "\n\tThis script automatically selects preset based on the containing folder name"
+############################################################
+# Help                                                     #
+############################################################
+Help() {
+	echo -e "\tFix misaligned microphone track and optionally merge primary and secondary audio tracks"
+	echo -e "\n\tThis script automatically selects a preset based on the parent folder"
 	echo -e "\tand makes a new file <filename>-fixed (original file remains untouched)"
-	echo -e "\n\tPath example: […]/ReplaySorcery/<filename> or […]/GpuScreenRecorder/<filename>"
+	echo -e "\n\tAutomatic path detection available for:"
+	echo -e "\t\t\t\t\t\t[…]/ReplaySorcery/<filename>\n\t\t\t\t\t\t[…]/GpuScreenRecorder/<filename>"
+	echo -e "\nUsage:"
+	echo -e "\tdelay-fix.sh <filename> [-h] [-o <float>] [-m] [-s <int>] [-e <int>]"
 	echo -e "\nOptions:"
-	echo -e "\t--merge\t\t\tMake an output file with a single merged audio track"
-	echo -e "\t--start <time>\t\tSkip first <time> (value in seconds)"
-	echo -e "\t--end   <time>\t\tRemove last <time> (value in seconds)"
+	echo -e "\t-h\t\tThis help"
+	echo -e "\t-o <float>\toffset - Manual offset provided in seconds"
+	echo -e "\t-m\t\tmerge  - Make an output file with a single merged audio track"
+	echo -e "\t-s <int>\tstart  - Skip first couple of seconds"
+	echo -e "\t-e <int>\tend    - Remove last couple of seconds"
 	echo -e "\nExample:"
-	echo -e "\t./delay-fix.sh Replay_2024-02-28_00-46-13.mkv --merge --start 6 --end 6"
+	echo -e "\t./delay-fix.sh Replay.mkv -m -s 6 -e 6"
 	exit 0
-fi
+}
 
-filename=$(basename -- "$1")
+
+filename=$(basename -- "$1"); shift
 extension="${filename##*.}"
 filename="${filename%.*}"
 directory=$(basename $(pwd))
 video_duration="$(ffprobe -i "$filename.$extension" -show_entries format=duration -v quiet -of csv="p=0")"
 a_count="$(ffprobe -loglevel error -select_streams a -show_entries stream=codec_type -of csv=p=0 "$filename.$extension" | wc -l)"
 
+merge="0"
 offset="0"
 start_time="0"
 end_time="$video_duration"
@@ -34,30 +43,46 @@ elif [ $directory == "GpuScreenRecorder" ]; then
 	# offset="5"
 fi
 
-#if [ "$2" == "-o" ]; then
-#	offset="$3"
-#fi
-
 start_flag="0"
 end_flag="0"
 
-if [ "$2" == "--merge" ] && [ "$3" == "--start" ]; then start_flag="$4"
-	elif [ "$2" == "--start" ]; then start_flag="$3"
-fi
-if [ "$2" == "--merge" ] && [ "$5" == "--end" ]; then end_flag="$6"
-	elif [ "$4" == "--end" ]; then end_flag="$5"
-fi
+while getopts ":ho:ms:e:" option; do
+	case $option in
+		h) # display Help
+			Help
+			;;
+		o)	offset="$OPTARG"
+			;;
+		m)	merge="1"
+			;;
+		s)	start_flag="$OPTARG"
+			;;
+		e)	end_flag="$OPTARG"
+			;;
+		:) # No argument
+			echo "Option -${OPTARG} requires an argument."
+			exit 1
+			;;
+		\?) # Invalid option
+			echo "Error: Invalid option: -${OPTARG}"
+			exit 1
+			;;
+	esac
+done
 
 int_val=${end_time%.*}
 start_time=$(($start_time+$start_flag))
 end_time="$(($int_val-$start_time-$end_flag))"
 
+echo -e "Offset = $offset"
 echo -e "Start time = $start_time"
 echo -e "End time = $end_time"
+echo -e "Merge status = $merge"
+echo -e ""
 
-if [[ $a_count != "0" && $a_count != "1" && "$2" == "--merge" ]]; then
+if [[ $a_count != "0" && $a_count != "1" && $merge == "1" ]]; then
 	# audio_mode="-ac 2 -filter_complex amerge=inputs=$a_count"
-	limiter="alimiter=level_in=1:level_out=1:limit=0.5:attack=7:release=100:level=disabled"
+	limiter="alimiter=level_in=1:level_out=4:limit=0.5:attack=7:release=100:level=disabled"
 	hi_lo_pass="highpass=f=200,lowpass=f=15000"
 	audio_mode="-filter_complex [0:1]volume=2[a1];[0:2]volume=0.75,$limiter[mic];[a1][mic]amix=duration=shortest[a] -map [a]"
 else
